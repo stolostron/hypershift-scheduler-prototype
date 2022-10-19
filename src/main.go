@@ -17,9 +17,7 @@ package main
 import (
 	//ctrl "sigs.k8s.io/controller-runtime"
 
-	"fmt"
 	"hypershift-scheduler-prototype/src/lib"
-	"os"
 
 	//"hypershift-scheduler-prototype/src/lib"
 
@@ -34,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 )
 
-var log = logf.Log.WithName("main")
+var logger = logf.Log.WithName("main")
 
 func main() {
 
@@ -44,19 +42,19 @@ func main() {
 	kubeconfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, &clientcmd.ConfigOverrides{})
 	config, err := kubeconfig.ClientConfig()
 
-	if err != nil {
-		log.Error(err, "unable to get kubeconfig")
-		os.Exit(1)
-	}
+	lib.AssertErr(err, "unable to get kubeconfig", logger)
 
 	dynClient, err := dynamic.NewForConfig(config)
 
-	if err != nil {
-		log.Error(err, "unable to create client")
-		os.Exit(1)
-	}
+	lib.AssertErr(err, "unable to create client", logger)
 
-	fmt.Println(lib.GetManagedClusters("", dynClient)[0].Labels)
+	managedclusters, err := lib.GetManagedClusters("", dynClient)
+
+	lib.AssertErr(err, "unable to get managed clusters", logger)
+
+	lib.Filter("feature.open-cluster-management.io/addon-hypershift-addon", "available", managedclusters, true)
+
+	lib.AssertErr(err, "unable to filter clusters", logger)
 
 	//mcl := ocm.NewManagedClusterLister(cache.NewIndexer())
 
