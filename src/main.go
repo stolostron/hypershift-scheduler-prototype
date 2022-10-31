@@ -52,10 +52,16 @@ func main() {
 
 	lib.AssertErr(err, "unable to get managed clusters", logger)
 
-	lib.Filter("feature.open-cluster-management.io/addon-hypershift-addon", "available", managedclusters, true)
+	filtered, _ := lib.Filter("feature.open-cluster-management.io/addon-hypershift-addon", "available", managedclusters, true)
 
 	lib.AssertErr(err, "unable to filter clusters", logger)
 
+	for c := range filtered {
+
+		lib.EnumHostedClusters(filtered[c], dynClient)
+	}
+
+	lib.SwitchContext(&kubeconfig, "of-c0")
 	//mcl := ocm.NewManagedClusterLister(cache.NewIndexer())
 
 	// //Creating a new manager

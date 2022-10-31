@@ -10,6 +10,7 @@ import (
 	"sigs.k8s.io/cluster-api/api/v1alpha4"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	hyper "github.com/openshift/hypershift/api/v1alpha1"
 )
 
 // Returns a list of managed clusters from current kubeconfig.
@@ -57,11 +58,11 @@ func Filter(labelKey string, labelVal string, unfiltered []v1alpha4.Cluster, int
 	var filteredClusters []v1alpha4.Cluster
 	var found bool
 	for cluster := range unfiltered {
-		fmt.Println("-----" + unfiltered[cluster].Name + "-----")
+		//fmt.Println("-----" + unfiltered[cluster].Name + "-----")
 		found = false
 		for key, val := range unfiltered[cluster].Labels {
 
-			fmt.Println(key + ":" + val)
+			//fmt.Println(key + ":" + val)
 
 			if key == labelKey && val == labelVal {
 				found = true
@@ -80,4 +81,32 @@ func Filter(labelKey string, labelVal string, unfiltered []v1alpha4.Cluster, int
 		}
 	}
 	return filteredClusters, nil
+}
+
+// Enumerate the number of hosted clusters on a hosting cluster
+// Requires:
+//
+//	*A hosting cluster
+//
+// Note: This assumes the passed in cluster is a hosting cluster
+func EnumHostedClusters(hostingCluster v1alpha4.Cluster, client dynamic.Interface) (int, error) {
+	hostedclusters := schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1alpha1", Resource: "hostedclusters"}
+
+	res, err := client.Resource(hostedclusters).Namespace("clusters").List(context.Background(), metav1.ListOptions{})
+
+	if err != nil {
+		return -1, err
+	}
+	
+	unstructured := res.UnstructuredContent()
+	var clusterlist hyper.HostedClusterList
+
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstructured, &clusterlist)
+
+	if err != nil {
+		return -1, err
+	}
+	
+
+	return len(clusterlist.Items), nil
 }
