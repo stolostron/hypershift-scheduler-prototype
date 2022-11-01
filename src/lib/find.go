@@ -2,16 +2,22 @@ package lib
 
 import (
 	"context"
-	"fmt"
+	"sort"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	clientcmd "k8s.io/client-go/tools/clientcmd"
 	"sigs.k8s.io/cluster-api/api/v1alpha4"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	hyper "github.com/openshift/hypershift/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+type ClusterLoad struct {
+	Load    int
+	Cluster v1alpha4.Cluster
+}
 
 // Returns a list of managed clusters from current kubeconfig.
 //
@@ -87,8 +93,9 @@ func Filter(labelKey string, labelVal string, unfiltered []v1alpha4.Cluster, int
 // Requires:
 //
 //	*A hosting cluster
+//	*A dynamic client
 //
-// Note: This assumes the passed in cluster is a hosting cluster
+// Note: This assumes the passed in cluster is a hosting cluster, does no checking at the moment
 func EnumHostedClusters(hostingCluster v1alpha4.Cluster, client dynamic.Interface) (int, error) {
 	hostedclusters := schema.GroupVersionResource{Group: "hypershift.openshift.io", Version: "v1alpha1", Resource: "hostedclusters"}
 
@@ -97,7 +104,7 @@ func EnumHostedClusters(hostingCluster v1alpha4.Cluster, client dynamic.Interfac
 	if err != nil {
 		return -1, err
 	}
-	
+
 	unstructured := res.UnstructuredContent()
 	var clusterlist hyper.HostedClusterList
 
@@ -106,7 +113,49 @@ func EnumHostedClusters(hostingCluster v1alpha4.Cluster, client dynamic.Interfac
 	if err != nil {
 		return -1, err
 	}
-	
 
 	return len(clusterlist.Items), nil
+}
+
+// Given a set of hosting clusters, return a sorted list of hosting clusters based on current hosted cluster load
+// Requires:
+//
+//	*List of hosting clusters
+//	*A boolean to list in ascending or descending order
+//	true = asc
+//	false = dsc
+func SortHostingCluster(hostingClusterList []v1alpha4.Cluster, dynClient dynamic.Interface, k *clientcmd.ClientConfig, asc bool) ([]ClusterLoad, error) {
+	var sortedList []ClusterLoad
+
+	//Populate list
+
+	for cluster := range hostingClusterList {
+		client := dynClient
+		var err error
+		if hostingClusterList[cluster].Name != "local-cluster" {
+			client, err = SwitchContext(k, hostingClusterList[cluster].Name)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		l, err := EnumHostedClusters(hostingClusterList[cluster], client)
+		if err != nil {
+			return nil, err
+		}
+		toAppend := ClusterLoad{
+			Load:    l,
+			Cluster: hostingClusterList[cluster],
+		}
+		sortedList = append(sortedList, toAppend)
+	}
+
+	//Sort list
+	if asc {
+		sort.Slice(sortedList[:], func(i, j int) bool { return sortedList[i].Load < sortedList[j].Load})
+	} else {
+		sort.Slice(sortedList[:], func(i, j int) bool { return sortedList[i].Load > sortedList[j].Load })
+	}
+
+	return sortedList, nil
 }
