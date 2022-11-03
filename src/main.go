@@ -17,6 +17,7 @@ package main
 import (
 	//ctrl "sigs.k8s.io/controller-runtime"
 
+	"flag"
 	"fmt"
 	"hypershift-scheduler-prototype/src/lib"
 
@@ -36,6 +37,9 @@ import (
 var logger = logf.Log.WithName("main")
 
 func main() {
+	
+	asc := flag.Bool("asc", true, "a bool")
+	flag.Parse()
 
 	logf.SetLogger(zap.New())
 
@@ -57,12 +61,12 @@ func main() {
 
 	lib.AssertErr(err, "unable to filter clusters", logger)
 
-	sorted, err := lib.SortHostingCluster(filtered, dynClient, &kubeconfig, true)
+	sorted, err := lib.SortHostingCluster(filtered, dynClient, &kubeconfig, *asc)
 	lib.AssertErr(err, "unable to sort hosting clusters", logger)
 
 	for c := range sorted {
-		fmt.Println(sorted[c].Cluster.Name + " - Load: ", sorted[c].Load)
-		
+		fmt.Println(sorted[c].Cluster.Name+" - Load: ", sorted[c].Load)
+
 	}
 
 	//mcl := ocm.NewManagedClusterLister(cache.NewIndexer())
